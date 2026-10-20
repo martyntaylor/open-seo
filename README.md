@@ -10,6 +10,77 @@ Connect with any agent like Claude Code, OpenClaw or Hermes. We have pre-built s
 
 <img width="100%" alt="openseo-keyword-research" src="https://github.com/user-attachments/assets/8ebdc439-3e72-41ab-8bde-8cda771ef2e8" />
 
+## About this fork
+
+This is a fork of [every-app/open-seo](https://github.com/every-app/open-seo) with two additions:
+
+- **Raw DataForSEO archive.** Every DataForSEO request and its full, untrimmed response is saved to the deployment's R2 bucket under `raw/<endpoint>/<YYYY-MM-DD>/<timestamp>-<id>.json`. The app keeps only the fields its UI needs (a rank check stores your own position but drops the rest of the SERP you paid for), so the archive keeps everything for later analysis, such as competitor rank history. Archiving is best-effort and never fails a call. See `src/server/lib/dataforseo/raw-archive.ts`.
+- **`deploy/enable-managed-oauth.mjs`.** Turns on Cloudflare Access Managed OAuth through the API, which MCP clients need to sign in. Some accounts don't show the toggle in the Zero Trust dashboard.
+
+The fork changes no database schema, so merging upstream stays simple.
+
+### Deploy to a Cloudflare account
+
+You need Node 22.6+, a Cloudflare account with R2 enabled, and a [DataForSEO](https://dataforseo.com) API key.
+
+1. Clone and install:
+
+   ```bash
+   git clone https://github.com/martyntaylor/open-seo.git && cd open-seo
+   corepack enable && pnpm install
+   ```
+
+2. Log in to Cloudflare. Answer yes to "Customize OAuth scopes?" and tick `access:write` alongside the defaults:
+
+   ```bash
+   pnpm alchemy login deploy/alchemy/alchemy.run.ts --env-file .env.selfhost --configure
+   pnpm alchemy cloudflare bootstrap
+   ```
+
+3. In the Cloudflare dashboard, open **Zero Trust** once so Access is enabled on the account. The deploy fails with "Access is not enabled" otherwise.
+
+4. Create `.env.selfhost` and fill in `DATAFORSEO_API_KEY` (the Base64 credential), `ACCESS_ALLOWED_EMAILS`, and `OPENSEO_TELEMETRY_DISABLED=1`:
+
+   ```bash
+   cp deploy/.env.selfhost.example .env.selfhost
+   ```
+
+5. Deploy, then enable Managed OAuth:
+
+   ```bash
+   pnpm deploy:selfhost --yes
+   node deploy/enable-managed-oauth.mjs
+   ```
+
+   Client registration can take a few minutes to appear. `/mcp` should return `401`, not `302`.
+
+### Connect Claude Code
+
+```bash
+claude mcp add --transport http --scope user openseo https://<your-worker-url>/mcp
+npx skills add every-app/open-seo -g -y --agent claude-code --skill ai-prompt-research ai-visibility-audit competitive-landscape competitor-analysis keyword-clustering keyword-research link-prospecting local-seo seo-audit seo-coach seo-project-setup seo-report
+```
+
+Restart Claude Code (`claude --continue`), run `/mcp`, choose **openseo → Authenticate**, and approve the Access sign-in.
+
+### Read the raw archive
+
+```bash
+pnpm exec wrangler r2 object get "open-seo-r2-selfhost/raw/v3/serp/google/organic/live/advanced/<date>/<file>.json" --remote --file out.json
+pnpm exec wrangler d1 execute open-seo-db-selfhost --remote --command "SELECT * FROM rank_snapshots LIMIT 10"
+```
+
+Wrangler can't list R2 objects. Use the dashboard or the R2 API (`GET /accounts/<id>/r2/buckets/<bucket>/objects?prefix=raw/`) to find keys.
+
+### Update from upstream
+
+```bash
+git fetch upstream && git merge upstream/main
+pnpm install && pnpm deploy:selfhost --yes
+```
+
+Afterwards, check `/mcp` still returns `401`. If it returns `302`, run `node deploy/enable-managed-oauth.mjs` again.
+
 ## Hosted Version
 
 Try OpenSEO for free on our website. If you want to support the project, a hosted subscription is $10/month.
