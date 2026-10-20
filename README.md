@@ -75,6 +75,7 @@ Wrangler can't list R2 objects. Use the dashboard or the R2 API (`GET /accounts/
 ### Update from upstream
 
 ```bash
+git remote add upstream https://github.com/every-app/open-seo.git   # once per clone
 git fetch upstream && git merge upstream/main
 pnpm install && pnpm deploy:selfhost --yes
 ```
