@@ -1,5 +1,6 @@
 import { AppError } from "@/server/lib/errors";
 import { getRequiredEnvValue } from "@/server/lib/runtime-env";
+import { archiveRawResponse } from "@/server/lib/dataforseo/raw-archive";
 import type { ErrorCode } from "@/shared/error-codes";
 // No runtime cycle: envelope.ts imports only the DataforseoErrorClassifier
 // type from here.
@@ -188,6 +189,7 @@ async function requestDataforseo<TTask extends DataforseoTaskLike>(
   });
   const text = await response.text();
   if (text === "") return null;
+  await archiveRawResponse(method, path, body, text);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the task type is the caller's claim about the payload; billing metadata and item fields are validated downstream (envelope.ts + section Zod schemas)
   const parsed = JSON.parse(text) as DataforseoResponseLike<TTask>;
   warnIfUpstreamResponseFailed(parsed, path);
