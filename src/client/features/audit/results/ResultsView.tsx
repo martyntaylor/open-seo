@@ -127,10 +127,19 @@ export function ResultsView({
           </AlertTitle>
           <AlertDescription>
             {crawlStopped
-              ? "The requested cooldown exceeded the audit time limit, so some URLs were left unvisited. This report is incomplete. "
+              ? "The site kept refusing pages, so some URLs were left unvisited. This report is incomplete. "
               : "Pages that returned 429 Too Many Requests could not be audited. "}
             Re-run the audit after the rate limit resets, or ask the site owner
-            to allow the "OpenSEO-Audit" crawler.
+            to allow the{" "}
+            <a
+              className="underline underline-offset-4"
+              href="https://openseo.so/docs/crawler"
+              target="_blank"
+              rel="noreferrer"
+            >
+              OpenSEO-Audit crawler
+            </a>
+            .
           </AlertDescription>
         </Alert>
       )}

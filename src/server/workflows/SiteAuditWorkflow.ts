@@ -32,6 +32,8 @@ import {
   START_URL_STEP,
 } from "@/server/workflows/auditStepConfigs";
 import type { RenderUsage } from "@/shared/audit-rendering";
+import { describeError } from "@/server/lib/errors";
+import { RENDERED_CRAWL_TIME_LIMIT_HOURS } from "@/shared/audit-limits";
 
 interface AuditParams {
   auditId: string;
@@ -115,9 +117,10 @@ export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
         config,
         access: await CrawlerCredentialService.openCrawlerAccess(access),
         renderUsage,
+        renderHold: renderHoldFor(event),
       });
     } catch (error) {
-      console.error(`Audit ${auditId} failed:`, error);
+      console.error(`Audit ${auditId} failed: ${describeError(error)}`, error);
       // Deploy-time resets are expected churn, not actionable errors.
       const isDeployReset =
         error instanceof Error &&
@@ -190,4 +193,16 @@ export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
       }
     }
   }
+}
+
+function renderHoldFor(event: WorkflowEvent<AuditParams>) {
+  const locks = event.payload.renderLocks ?? [];
+  if (locks.length === 0) return undefined;
+  return {
+    // The locks are taken just before the workflow is created, so its
+    // timestamp dates them, and it is the same on every replay.
+    deadlineAt:
+      event.timestamp.getTime() + RENDERED_CRAWL_TIME_LIMIT_HOURS * 3_600_000,
+    credits: locks.reduce((sum, lock) => sum + lock.estimatedCredits, 0),
+  };
 }

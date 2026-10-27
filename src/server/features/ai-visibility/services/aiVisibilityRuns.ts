@@ -6,10 +6,7 @@ import {
 } from "../repositories/AiVisibilityRepository";
 import { AI_ANSWER_FAILURES, AiVisibilityError } from "./aiVisibilityErrors";
 import { aiScope } from "./aiVisibilityConfiguration";
-import {
-  getOptionalEnvValue,
-  isHostedServerAuthMode,
-} from "@/server/lib/runtime-env";
+import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import {
   getOrCreateOrganizationCustomer,
   getUsageCreditsRemaining,
@@ -23,6 +20,8 @@ import { requireConfiguration } from "./aiVisibilityMutation";
 import { aiPromptIsBranded } from "./aiVisibilityMatching";
 import { aiRunView } from "./aiVisibilityResults";
 import { aiCostForAnswers } from "./aiVisibilityCost";
+import { hasDataforseoAccess } from "@/server/lib/provider-access";
+import { startWorkflow } from "@/server/lib/startWorkflow";
 
 const ACTIVE_WORKFLOW_STATUSES = new Set([
   "queued",
@@ -74,7 +73,7 @@ export async function startRun(
   billing: BillingCustomerContext,
   promptIds?: string[],
 ): Promise<AiRun> {
-  if (!(await getOptionalEnvValue("DATAFORSEO_API_KEY")))
+  if (!(await hasDataforseoAccess()))
     throw new AiVisibilityError(
       "PROVIDER_NOT_CONFIGURED",
       "An operator must configure DATAFORSEO_API_KEY before collection. Your saved tracker remains available.",
@@ -162,19 +161,23 @@ export async function startRun(
       );
     }
     try {
-      await env.AI_VISIBILITY_WORKFLOW.create({
-        id,
-        // Only the billing fields: the request context is not serializable.
-        params: {
-          runId: id,
-          customer: {
-            organizationId: billing.organizationId,
-            userId: billing.userId,
-            userEmail: billing.userEmail,
-            projectId: project.id,
+      await startWorkflow(
+        env.AI_VISIBILITY_WORKFLOW,
+        {
+          id,
+          // Only the billing fields: the request context is not serializable.
+          params: {
+            runId: id,
+            customer: {
+              organizationId: billing.organizationId,
+              userId: billing.userId,
+              userEmail: billing.userEmail,
+              projectId: project.id,
+            },
           },
         },
-      });
+        "AI visibility check",
+      );
     } catch (error) {
       await failAiRun(id, AI_ANSWER_FAILURES.notStarted);
       throw error;
