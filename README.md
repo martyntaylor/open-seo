@@ -12,10 +12,12 @@ Connect with any agent like Claude Code, OpenClaw or Hermes. We have pre-built s
 
 ## About this fork
 
-This is a fork of [every-app/open-seo](https://github.com/every-app/open-seo) with two additions:
+This is a fork of [every-app/open-seo](https://github.com/every-app/open-seo) with these additions:
 
 - **Raw DataForSEO archive.** Every DataForSEO request and its full, untrimmed response is saved to the deployment's R2 bucket under `raw/<endpoint>/<YYYY-MM-DD>/<timestamp>-<id>.json`. The app keeps only the fields its UI needs (a rank check stores your own position but drops the rest of the SERP you paid for), so the archive keeps everything for later analysis, such as competitor rank history. Archiving is best-effort and never fails a call. See `src/server/lib/dataforseo/raw-archive.ts`.
 - **`deploy/enable-managed-oauth.mjs`.** Turns on Cloudflare Access Managed OAuth through the API, which MCP clients need to sign in. Some accounts don't show the toggle in the Zero Trust dashboard.
+- **Custom domain.** Set `SELFHOST_DOMAIN` (e.g. `seo.example.com`, on a zone in the same Cloudflare account) to serve the self-host worker and its Access gate on your own hostname instead of `workers.dev`.
+- **`scripts/import-raw-responses.mjs`.** Imports DataForSEO responses saved on disk before the archive existed. Every file goes to R2, and keyword data becomes saved keywords with metrics in a project, tagged `import: <topic>`. It only prints a plan unless you pass `--apply`: `node scripts/import-raw-responses.mjs <projectId>=<dir> [...] [--apply]`.
 
 The fork changes no database schema, so merging upstream stays simple.
 
@@ -39,7 +41,7 @@ You need Node 22.6+, a Cloudflare account with R2 enabled, and a [DataForSEO](ht
 
 3. In the Cloudflare dashboard, open **Zero Trust** once so Access is enabled on the account. The deploy fails with "Access is not enabled" otherwise.
 
-4. Create `.env.selfhost` and fill in `DATAFORSEO_API_KEY` (the Base64 credential), `ACCESS_ALLOWED_EMAILS`, and `OPENSEO_TELEMETRY_DISABLED=1`:
+4. Create `.env.selfhost` and fill in `DATAFORSEO_API_KEY` (the Base64 credential), `AUTH_MODE=cloudflare_access` (the example defaults to password sign-in), `ACCESS_ALLOWED_EMAILS`, `OPENSEO_TELEMETRY_DISABLED=1`, and optionally `SELFHOST_DOMAIN`:
 
    ```bash
    cp deploy/.env.selfhost.example .env.selfhost
